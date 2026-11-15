@@ -53,11 +53,11 @@ Signed-off-by: Ziwei Wu <wuziwei518@gmail.com>
 +	if (netdev && netif_is_bridge_master(netdev)) {
 +		struct net_device *slave_dev;
 +		u16 vid = data->vlan.num ? data->vlan.hdr[data->vlan.num - 1].id : 0;
-
++
 +		slave_dev = br_fdb_find_port(netdev, data->eth.h_dest, vid);
 +		if (!slave_dev && vid)
 +			slave_dev = br_fdb_find_port(netdev, data->eth.h_dest, 0);
-
++
 +		if (slave_dev)
 +			netdev = slave_dev;
 +	}
