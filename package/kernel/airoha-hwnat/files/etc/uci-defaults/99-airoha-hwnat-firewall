@@ -1,0 +1,16 @@
+#!/bin/sh
+# Register Airoha HW NAT include script into OpenWrt firewall UCI configuration
+
+. /lib/functions.sh
+
+uci -q get firewall.airoha_hwnat >/dev/null && exit 0
+
+uci -q batch <<EOF
+set firewall.airoha_hwnat=include
+set firewall.airoha_hwnat.type='script'
+set firewall.airoha_hwnat.path='/usr/share/airoha-hwnat/firewall.include'
+set firewall.airoha_hwnat.reload='1'
+commit firewall
+EOF
+
+exit 0

@@ -1,0 +1,26 @@
+#!/bin/sh
+# Setup PON devices (pon0, omci0) and ensure WAN defaults support PPPoE dialup on Airoha ONT
+
+. /lib/functions.sh
+
+# Ensure pon0 device exists in UCI network
+if ! uci -q get network.dev_pon0 >/dev/null; then
+	uci -q batch <<EOF
+set network.dev_pon0=device
+set network.dev_pon0.name='pon0'
+set network.dev_pon0.mtu='1508'
+set network.dev_pon0.multicast='1'
+commit network
+EOF
+fi
+
+# Ensure omci0 device exists in UCI network
+if ! uci -q get network.dev_omci0 >/dev/null; then
+	uci -q batch <<EOF
+set network.dev_omci0=device
+set network.dev_omci0.name='omci0'
+commit network
+EOF
+fi
+
+exit 0

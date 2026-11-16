@@ -1,0 +1,135 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2026 OpenWrt.org
+# Airoha Hardware NAT and NPU Offload Service
+
+START=95
+USE_PROCD=1
+
+HWNAT_BIN="/usr/sbin/hw_nat"
+
+setup_dev_nodes() {
+	[ -c /dev/hwnat0 ] || mknod /dev/hwnat0 c 220 0
+	[ -c /dev/fe ] || mknod /dev/fe c 226 0
+	[ -c /dev/qdma_lan ] || mknod /dev/qdma_lan c 119 0
+	[ -c /dev/qdma_wan ] || mknod /dev/qdma_wan c 120 0
+	[ -c /dev/acl0 ] || mknod /dev/acl0 c 230 0
+	[ -c /dev/ac0 ] || mknod /dev/ac0 c 240 0
+	[ -c /dev/mtr0 ] || mknod /dev/mtr0 c 250 0
+}
+
+setup_compat_symlinks() {
+	# Compatibility symlinks for musl dynamic loader and libc
+	[ -e /lib/ld-linux-aarch64.so.1 ] || ln -sf /lib/ld-musl-aarch64.so.1 /lib/ld-linux-aarch64.so.1 2>/dev/null || true
+	[ -e /lib/libc.so.6 ] || ln -sf /lib/libc.so /lib/libc.so.6 2>/dev/null || true
+
+	# Ensure vendor-expected NPU firmware paths
+	[ -d /userfs ] || mkdir -p /userfs
+	[ -e /userfs/npu_rv32.bin ] || [ ! -f /lib/firmware/airoha/npu_rv32.bin ] || ln -sf /lib/firmware/airoha/npu_rv32.bin /userfs/npu_rv32.bin 2>/dev/null || true
+	[ -e /userfs/npu_data.bin ] || [ ! -f /lib/firmware/airoha/npu_data.bin ] || ln -sf /lib/firmware/airoha/npu_data.bin /userfs/npu_data.bin 2>/dev/null || true
+	[ -d /userfs/bin ] || mkdir -p /userfs/bin
+	[ -e /userfs/bin/hw_nat ] || ln -sf /usr/sbin/hw_nat /userfs/bin/hw_nat 2>/dev/null || true
+	[ -e /userfs/bin/npu_bridge_cmd ] || ln -sf /usr/sbin/npu_bridge_cmd /userfs/bin/npu_bridge_cmd 2>/dev/null || true
+}
+
+enable_hwnat() {
+	[ -x "$HWNAT_BIN" ] || {
+		logger -t airoha-hwnat -p daemon.warn "hw_nat binary not found or not executable"
+		return 1
+	}
+
+	setup_dev_nodes
+	setup_compat_symlinks
+
+	# Enable hardware NAT engine
+	$HWNAT_BIN -en 1 >/dev/null 2>&1
+
+	# Binding threshold: 30 pkts/s (optimal balance between offload and conntrack establishment)
+	$HWNAT_BIN -N 30 >/dev/null 2>&1
+
+	# Unbind entry lifetime: 3 seconds
+	$HWNAT_BIN -T 3 >/dev/null 2>&1
+
+	# Bound entry lifetimes: TCP=15s, UDP=15s, FIN=5s, non-TCP/UDP=15s
+	$HWNAT_BIN -U 15 15 15 15 >/dev/null 2>&1
+
+	# Clean stale FOE entries
+	$HWNAT_BIN -! >/dev/null 2>&1
+
+	logger -t airoha-hwnat -p daemon.notice "Airoha HW NAT engine enabled (flow_offloading_hw=1)"
+}
+
+disable_hwnat() {
+	[ -x "$HWNAT_BIN" ] || return 0
+	setup_dev_nodes
+
+	# Disable hardware NAT engine
+	$HWNAT_BIN -en 0 >/dev/null 2>&1
+	$HWNAT_BIN -! >/dev/null 2>&1
+
+	logger -t airoha-hwnat -p daemon.notice "Airoha HW NAT engine disabled (flow_offloading_hw=0)"
+}
+
+is_hwnat_requested() {
+	local hw_offload sw_offload
+
+	# Check LuCI firewall settings
+	hw_offload=$(uci -q get firewall.@defaults[0].flow_offloading_hw)
+	sw_offload=$(uci -q get firewall.@defaults[0].flow_offloading)
+
+	# If explicit flow_offloading_hw=1, enable
+	if [ "$hw_offload" = "1" ]; then
+		return 0
+	fi
+
+	# If explicitly disabled (flow_offloading_hw=0)
+	if [ "$hw_offload" = "0" ]; then
+		return 1
+	fi
+
+	# Fallback check package config /etc/config/airoha-hwnat
+	local pkg_enabled
+	pkg_enabled=$(uci -q get airoha-hwnat.config.enabled)
+	if [ "$pkg_enabled" = "1" ]; then
+		return 0
+	elif [ "$pkg_enabled" = "0" ]; then
+		return 1
+	fi
+
+	# Default to enabled if flow_offloading is enabled
+	[ "$sw_offload" = "1" ] && return 0
+
+	return 1
+}
+
+service_triggers() {
+	procd_add_reload_trigger firewall
+	procd_add_reload_trigger network
+}
+
+start_service() {
+	if is_hwnat_requested; then
+		enable_hwnat
+	else
+		disable_hwnat
+	fi
+}
+
+stop_service() {
+	disable_hwnat
+}
+
+reload_service() {
+	start_service
+}
+
+status() {
+	setup_dev_nodes
+	if [ -x "$HWNAT_BIN" ]; then
+		echo "=== Airoha HW NAT Status ==="
+		$HWNAT_BIN -g 2>/dev/null || echo "hw_nat status unavailable"
+	fi
+	if [ -d /sys/kernel/debug/ppe ]; then
+		echo "=== PPE Debug Entries ==="
+		cat /sys/kernel/debug/ppe/entries 2>/dev/null | head -n 20 || true
+	fi
+}

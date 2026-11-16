@@ -187,6 +187,7 @@ define Device/fiberhome_hg5585f-common
   DEVICE_PACKAGES := kmod-gpio-button-hotplug kmod-leds-gpio kmod-usb3 \
     kmod-airoha-paged-bosa kmod-airoha-xpon airoha-ponctl airoha-pond \
 	 kmod-mt7915e kmod-mt7916-firmware wpad-openssl \
+	 kmod-airoha-hwnat airoha-hwnat-tools \
 	 fitblk nand-utils ubi-utils $(AIROHA_USB_STORAGE_PACKAGES)
 endef
 

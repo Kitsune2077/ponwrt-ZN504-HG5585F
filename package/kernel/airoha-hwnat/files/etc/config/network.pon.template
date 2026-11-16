@@ -1,0 +1,58 @@
+# Airoha AN7581 HG5585F PON & PPPoE Network Configuration Template
+# This configuration preserves native GPON/XGPON/XGS-PON ONT functions
+# and full on-box PPPoE dial-up acceleration.
+
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	option ipaddr '127.0.0.1'
+	option netmask '255.0.0.0'
+
+config globals 'globals'
+	option ula_prefix 'fd00::/48'
+
+# Base PON Physical Device
+config device
+	option name 'pon0'
+	option type 'Network device'
+	option mtu '1508'
+	option promisc '1'
+	option multicast '1'
+
+# OMCI Management Device
+config device
+	option name 'omci0'
+	option type 'Network device'
+
+# LAN Bridge
+config device
+	option name 'br-lan'
+	option type 'bridge'
+	list ports 'lan1'
+	list ports 'lan2'
+	list ports 'lan3'
+	list ports 'lan4'
+
+config interface 'lan'
+	option device 'br-lan'
+	option proto 'static'
+	option ipaddr '192.168.1.1'
+	option netmask '255.255.255.0'
+	option ip6assign '60'
+
+# PPPoE WAN (Direct pon0 or VLAN tagged, e.g. pon0.41)
+config interface 'wan'
+	option device 'pon0'
+	option proto 'pppoe'
+	option username 'user@broadband'
+	option password 'password'
+	option ipv6 'auto'
+	option mtu '1492'
+	option keepalive '4 15'
+	option metric '10'
+
+config interface 'wan6'
+	option device '@wan'
+	option proto 'dhcpv6'
+	option reqaddress 'try'
+	option reqprefix 'auto'

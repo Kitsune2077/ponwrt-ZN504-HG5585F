@@ -151,7 +151,7 @@ jobs:
       - name: Organize output files
         run: |
           mkdir -p output
-          find bin/targets/airoha/an7581/ -type f \( -name "*zn504*" -o -name "*hg5585f-ct*" \) ! -name "*usb-sfp*" \( -name "*sysupgrade.itb" -o -name "*recovery.itb" -o -name "*manifest" \) -exec cp {} output/ \;
+          find bin/targets/airoha/an7581/ -type f \( -name "*zn504*" -o -name "*hg5585f-ct*" -o -name "*hg5585f-cu*" \) ! -name "*usb-sfp*" \( -name "*sysupgrade.itb" -o -name "*recovery.itb" -o -name "*manifest" \) -exec cp {} output/ \;
           cd output
           for file in $(ls * 2>/dev/null); do
             [ -f "$file" ] && sha256sum "$file" > "${file}.sha256"
@@ -193,17 +193,19 @@ jobs:
               - 修复了 AN7581 NPU 尝试更新未对齐的 IPv6 计数器导致的硬件流水线卡死；
               - 修复了硬件 MTU 计算未包含 PPPoE 与双层 VLAN 额外 16 字节头部开销导致的静默丢包。
 
-            ### 2. Sing-box (momo) 内存与网络体验优化
-            - **修复嵌入式设备上 Go 运行时内存膨胀（VmRSS 飙高）问题**：
-              - 针对 512MB 内存环境，注入 `GODEBUG=madvdontneed=1` 与合理的 `GOMEMLIMIT`，解决 Linux 内核默认 `MADV_FREE` 机制导致物理内存无法及时释放的问题，使系统常驻可用内存保持在 130MB+ 的健康绿区。
-            - **新增网络热插拔自动预热脚本 (`98-momo-warmup`)**：
-              - 在 WAN 口或 PPPoE 重连上线时自动快速预热核心与节点连接，杜绝网络恢复后的首包等待延迟。
+            ### 2. 双核透明代理与 eBPF 内核网络加速
+            - **内核级支持 Virtual Ethernet (kmod-veth)**：
+              - 完整启用内核 `CONFIG_VETH=y`，为 Honk 提供构建 `dae0` link pair 与 `daens` 隔离命名空间所必需的底层虚拟网卡对支持。
+            - **集成 Honk eBPF 透明网关与原生 Web 界面**：
+              - 预置 `honk` 官方全功能核心（集成 doona 现代独立仪表盘），集成 `luci-app-honk` 与完整简体中文语言包，支持 LuCI 菜单直观管理与配置热更。
+            - **原生 Sing-Box 纯净裸核支持**：
+              - 彻底移除 Momo 复杂封装与干扰，支持 Sing-box 裸核直通与 TUN 零拷贝模式，提供 `sb-honk` 双核极速互斥管理方案。
 
             ### 3. 机型支持与服务修复
             - **新增 FiberHome HG5585F CU（联通版）机型构建支持**：
               - 启用独立设备 Profile 定义与专用的 DTS 镜像构建链。
             - **修复 IPTV 与防火墙细节**：
-              - 修复 `rtp2httpd` 多实例初始化逻辑，完善 momo 防火墙专区配置。
+              - 修复 `rtp2httpd` 多实例初始化逻辑，完善透明代理防火墙专区配置。
 
             ---
             * **适用机型**：
@@ -217,7 +219,7 @@ jobs:
               - **Wi-Fi 四核无线线程绑核与以太网硬中断亲和性** (`/usr/sbin/pin-wifi-cpus.sh` + `/etc/hotplug.d/net/99-wifi-affinity`)：`mt76-tx*` 独占 `CPU3`，`napi/phy0-0` 均衡打散至 `CPU0/1/2`，有线硬中断绑定 `IRQ 17->CPU1`、`IRQ 21->CPU2`（实测 5G Wi-Fi iPerf3 稳定 **1144 Mbps 下行 / 1200 Mbps 上行**）
             * **核心网络与实时音视频保序优化**：
               - **达发 AN7581 PPE 硬件流卸载 IPv4+IPv6 双栈全线速直转**：集成独家内核补丁 `931-net-airoha-fix-wan-ipv6-pppoe-flow-offload.patch`，彻底解决达发 AN7581 硬件流卸载长期存在的 3 大隐蔽缺陷（L3 IPv6 路由误绑定 L2 subflow 覆写 PPPoE ID、NPU stats 重写导致硬件流水线死锁、1518 字节 MTU 越界硬件丢包）；默认全开启 Firewall4 硬件流卸载（`flow_offloading='1'` / `flow_offloading_hw='1'`），实现 IPv4 与 IPv6 均由 PPE 芯片硬件卸载加速，千兆双栈线速转发 CPU 占用低至 ~4%，夸克 App、阿里 CDN 与各类网盘秒级满速响应；保持停用多核 `packet_steering='0'` 服务以保护 Wi-Fi 4 核绑定亲和性不受冲刷
-              - 启用 Momo 纯核心模式（`core_only='1'`）搭配内核 NFQUEUE，完整遵循用户 `sing-box` 订阅规则及原生 `auto_redirect` + `bypass` 零拷贝直连
+              - 预置 Firewall4 代理专区放行与 TUN 零拷贝直连
               - 网桥放行 LLDP (0x4000)，杜绝下挂 AP 组播心跳导致网桥丢包统计异常
               - 移植 QWRT 内存防碎片参数 (`vm.percpu_pagelist_high_fraction = 128`)，提升高通量多核并发页面分配效率
               - 移植 QWRT SSDP (`239.255.255.250:1900`) 与 WSD (`3702`) `NOTRACK` 局域网广播旁路，防止连接跟踪表与交换芯片 CDM 队列膨胀
@@ -230,9 +232,9 @@ jobs:
               - 磁盘与存储分区管理 (`luci-app-diskman`)
               - 网页终端 (`luci-app-ttyd`)
             * **第一性原理纯净加解密流水线**：
-              - 遵循 ImmortalWrt 官方实践 (da63f7d)，彻底剔除 SafeXcel / EIP-93 协处理器 (`kmod-crypto-hw-eip93`)，杜绝 DMA 缓存颠簸与硬中断抢占，释放 4 核 NEON 极速运算 WireGuard (ChaCha20) 与 Momo 用户态代理
+              - 遵循 ImmortalWrt 官方实践 (da63f7d)，彻底剔除 SafeXcel / EIP-93 协处理器 (`kmod-crypto-hw-eip93`)，杜绝 DMA 缓存颠簸与硬中断抢占，释放 4 核 NEON 极速运算 WireGuard (ChaCha20) 与 Sing-Box/Honk 代理
             * **精简纯净架构**：
-              - 彻底移除冗余重型插件（Lucky、Samba4、集客AC、WOL、AutoReboot、UPnP、RAMFree），大幅减小固件体积并缩短编译时间
+              - 彻底移除冗余重型插件（Momo、Lucky、Samba4、集客AC、WOL、AutoReboot、UPnP、RAMFree），大幅减小固件体积并缩短编译时间
             * **集成 Kahen 项目精华**：
               - 修复 SoC 与光模块温度上报 (`temperature-rpc.uc` + `/sbin/tempinfo` RPC 联动)
               - MTD 读写支持 (`kmod-mtd-rw`)，保障工厂/校准分区备份
@@ -247,8 +249,8 @@ jobs:
               - 原生集成 YAML 处理器 `yq`，全面覆盖局域网自动化配置与订阅需求
             * **CI/CD 构建流水线现代化 (吸收 1018ji/build-ponwrt-daily 精华)**：
               - 升级构建流水线至 Ubuntu 24.04 + Node 24，集成基于编译器版本指纹的 Ccache 高速缓存（`CCACHE_COMPILERCHECK`）与 DL 共享依赖池，编译时间大幅缩短
-            * **Momo / Sing-box 透明代理**：
-              - 原生集成 `luci-app-momo` 与最新 `sing-box 1.15.0-alpha.13` 预览版核心（支持 `endpoints[].on_demand` 等 1.15+ 新版订阅语法）
-              - 预置 128MiB 健康堆内存上限与定时内存整理防爆机制
-              - 预置 Momo 完整简体中文汉化语言包
+            * **双核透明代理方案 (Sing-Box & Honk)**：
+              - 原生集成最新 `sing-box 1.15.0-alpha.13` 核心与 `honk 0.1.0-beta.6` eBPF 零开销转发核心
+              - 原生预置 `luci-app-honk` Web 控制面板与 doona 现代化仪表盘
+              - 支持 `sb-honk` 双核互斥无缝切换，保留硬件流卸载极致吞吐
           files: output/*
