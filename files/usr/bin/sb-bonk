@@ -115,7 +115,7 @@ switch_to_honk() {
     if [ -x "/etc/init.d/honk" ]; then
         /etc/init.d/honk restart 2>/dev/null
     else
-        nohup honk-core --config /etc/honk/config.dae --store db --data-dir /etc/honk/data --log-file /var/log/honk.log >/dev/null 2>&1 &
+        ( trap "" HUP; honk-core --config /etc/honk/config.dae --store db --data-dir /etc/honk/data --log-file /var/log/honk.log >/dev/null 2>&1 ) </dev/null &
     fi
 
     sleep 1
@@ -204,7 +204,8 @@ restart_active() {
             /etc/init.d/honk restart 2>/dev/null
         else
             killall -9 honk 2>/dev/null
-            nohup honk -c /etc/honk/config.dae --log-file /var/log/honk.log >/dev/null 2>&1 &
+            killall -9 honk-core 2>/dev/null
+            ( trap "" HUP; honk-core --config /etc/honk/config.dae --store db --data-dir /etc/honk/data --log-file /var/log/honk.log >/dev/null 2>&1 ) </dev/null &
         fi
         echo "${GREEN}✓ Honk 重启完成${NC}"
     elif [ "$SB_ACTIVE" = "1" ]; then
