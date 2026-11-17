@@ -2,11 +2,19 @@
 # OpenWrt package: honk (prebuilt official musl static binary with embedded UI)
 #
 
+# $(CURDIR) points at the buildroot root, and $(MAKEFILE_LIST) grows with every
+# included file, so the package directory has to be resolved before the first
+# include.
+PKG_DIR:=$(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=honk
-PKG_VERSION:=0.1.0-beta.6
+# OpenWrt APK v3 prohibits hyphens in PKG_VERSION. Use underscore for pre-release suffixes.
+PKG_VERSION:=0.1.0_beta6
 PKG_RELEASE:=1
+
+HONK_GIT_TAG:=v0.1.0-beta.6
 
 ifeq ($(ARCH),aarch64)
 	HONK_ARCH:=aarch64-unknown-linux-musl
@@ -17,8 +25,8 @@ ifeq ($(ARCH),x86_64)
 	HONK_HASH:=2783b8f0856fc1aecd1cd1d911d9a904c593cd507cf61e5fa24fbd7075317244
 endif
 
-PKG_SOURCE:=honk-core-v$(PKG_VERSION)-$(HONK_ARCH)-full.tar.gz
-PKG_SOURCE_URL:=https://github.com/daeuniverse/honk/releases/download/v$(PKG_VERSION)/
+PKG_SOURCE:=honk-core-$(HONK_GIT_TAG)-$(HONK_ARCH)-full.tar.gz
+PKG_SOURCE_URL:=https://github.com/daeuniverse/honk/releases/download/$(HONK_GIT_TAG)/
 PKG_HASH:=$(HONK_HASH)
 
 PKG_LICENSE:=GPL-3.0-only
@@ -62,13 +70,13 @@ define Package/honk/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/honk-core $(1)/usr/bin/honk-core
 	$(LN) honk-core $(1)/usr/bin/honk
 	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/honk.init $(1)/etc/init.d/honk
+	$(INSTALL_BIN) $(PKG_DIR)/files/honk.init $(1)/etc/init.d/honk
 	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_CONF) ./files/honk.config $(1)/etc/config/honk
+	$(INSTALL_CONF) $(PKG_DIR)/files/honk.config $(1)/etc/config/honk
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
-	$(INSTALL_BIN) ./files/honk.uci-defaults $(1)/etc/uci-defaults/90-honk-autostart
+	$(INSTALL_BIN) $(PKG_DIR)/files/honk.uci-defaults $(1)/etc/uci-defaults/90-honk-autostart
 	$(INSTALL_DIR) $(1)/etc/honk
-	$(INSTALL_CONF) ./files/config.dae $(1)/etc/honk/config.dae
+	$(INSTALL_CONF) $(PKG_DIR)/files/config.dae $(1)/etc/honk/config.dae
 	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
 	printf '%s\n' '/etc/honk/data/' > $(1)/lib/upgrade/keep.d/honk
 	$(INSTALL_DIR) $(1)/usr/share/honk
