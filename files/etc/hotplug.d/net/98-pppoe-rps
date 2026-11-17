@@ -11,9 +11,11 @@ case "$dev" in
         ;;
 esac
 
-# 自动补全 sing-box 方案 B BT 直连规则 (避免海量 P2P 冲入用户态 NFQUEUE 嗅探)
+# 自动补全 sing-box BT/P2P 高并发直连规则 (彻底杜绝海量 P2P 冲入用户态 NFQUEUE/tun0 导致炸内存与 CPU)
 if nft list chain inet sing-box prerouting_prematch >/dev/null 2>&1; then
-    if ! nft list chain inet sing-box prerouting_prematch | grep -q "6881-6889"; then
-        nft insert rule inet sing-box prerouting_prematch udp dport { 6881-6889, 15000, 51413 } meta mark set 0x2024 ct mark set 0x2024 counter return 2>/dev/null || true
+    if ! nft list chain inet sing-box prerouting_prematch | grep -q "58595"; then
+        # 常见 BT/PT/P2P 协议端口 (TCP + UDP，双向 sport + dport 直通)
+        nft insert rule inet sing-box prerouting_prematch meta l4proto { tcp, udp } th dport { 6881-6889, 6969, 8999, 15000, 51413, 58595 } meta mark set 0x2024 ct mark set 0x2024 counter return 2>/dev/null || true
+        nft insert rule inet sing-box prerouting_prematch meta l4proto { tcp, udp } th sport { 6881-6889, 6969, 8999, 15000, 51413, 58595 } meta mark set 0x2024 ct mark set 0x2024 counter return 2>/dev/null || true
     fi
 fi
