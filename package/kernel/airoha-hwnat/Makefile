@@ -35,17 +35,18 @@ define KernelPackage/airoha-hwnat/description
   Frame Engine (FE), QDMA, Software NAT fallback, and Neural Processing Unit (NPU) offload.
 endef
 
-define KernelPackage/airoha-whnat
-  SUBMENU:=Network Support
-  TITLE:=Airoha MT7916 Wireless Hardware NAT Offload
-  DEPENDS:=+kmod-airoha-hwnat
-  FILES:=$(PKG_BUILD_DIR)/modules/mt_whnat_7916.ko
-  AUTOLOAD:=$(call AutoLoad,31,mt_whnat_7916)
-endef
-
-define KernelPackage/airoha-whnat/description
-  Wireless Hardware NAT (WHNAT) module for MediaTek MT7916 on Airoha SoCs.
-endef
+# define KernelPackage/airoha-whnat
+#   SUBMENU:=Network Support
+#   TITLE:=Airoha MT7916 Wireless Hardware NAT Offload
+#   DEPENDS:=+kmod-airoha-hwnat
+#   FILES:=$(PKG_BUILD_DIR)/modules/mt_whnat_7916.ko
+#   AUTOLOAD:=$(call AutoLoad,31,mt_whnat_7916)
+# endef
+# 
+# define KernelPackage/airoha-whnat/description
+#   Wireless Hardware NAT (WHNAT) module for MediaTek MT7916 on Airoha SoCs.
+#   Note: Requires proprietary mt7916_ap.ko; disabled when using open-source kmod-mt7915e.
+# endef
 
 define Package/airoha-hwnat-tools
   SECTION:=utils
@@ -124,5 +125,5 @@ define Package/airoha-hwnat-tools/install
 endef
 
 $(eval $(call KernelPackage,airoha-hwnat))
-$(eval $(call KernelPackage,airoha-whnat))
+# $(eval $(call KernelPackage,airoha-whnat))
 $(eval $(call BuildPackage,airoha-hwnat-tools))
