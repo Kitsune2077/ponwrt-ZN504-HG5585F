@@ -1,5 +1,0 @@
-#!/bin/sh
-# Fw4 script include for Airoha Hardware NAT offloading
-# Invoked by fw4 when reloading firewall configuration rules
-
-/etc/init.d/airoha-hwnat reload

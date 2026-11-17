@@ -1,7 +1,0 @@
-# Airoha Frame Engine, QDMA, Hardware NAT and NPU driver loading sequence
-fe_core
-qdma_lan
-qdma_wan
-hw_nat
-npu_wifi
-npu

@@ -1,7 +1,0 @@
-#!/bin/sh
-# Hotplug hook for Airoha HW NAT
-# Automatically invoked when OpenWrt firewall starts, stops, or reloads (e.g. from LuCI)
-
-[ "$ACTION" = "reload" ] || [ "$ACTION" = "restart" ] || [ "$ACTION" = "start" ] || exit 0
-
-/etc/init.d/airoha-hwnat reload
