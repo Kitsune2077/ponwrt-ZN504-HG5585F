@@ -1,4 +1,4 @@
-name: Build PonWrt (ZN504XG-D & HG5585F)
+name: Build PonWrt (HG5382A)
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ env:
 
 jobs:
   build:
-    name: Build ZN504XG-D & HG5585F
+    name: Build HG5382A
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     permissions:
@@ -133,7 +133,7 @@ jobs:
       - name: Organize output files
         run: |
           mkdir -p output
-          find bin/targets/airoha/an7581/ -type f \( -name "*zn504*" -o -name "*hg5585f-ct*" -o -name "*hg5585f-cu*" \) ! -name "*usb-sfp*" \( -name "*sysupgrade.itb" -o -name "*recovery.itb" -o -name "*manifest" \) -exec cp {} output/ \;
+          find bin/targets/airoha/an7581/ -type f -name "*hg5382a*" \( -name "*sysupgrade.itb" -o -name "*recovery.itb" -o -name "*manifest" \) -exec cp {} output/ \;
           cd output
           for file in $(ls * 2>/dev/null); do
             [ -f "$file" ] && sha256sum "$file" > "${file}.sha256"
@@ -145,7 +145,7 @@ jobs:
       - name: Upload Firmware Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PonWrt-ZN504-HG5585F-enhanced-firmware
+          name: PonWrt-HG5382A-enhanced-firmware
           path: output/*
           retention-days: 14
 
@@ -162,9 +162,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: PonWrt ZN504XG-D & HG5585F 聚合增强固件 (${{ steps.tag.outputs.release_tag }})
+          name: PonWrt FiberHome HG5382A 增强固件 (${{ steps.tag.outputs.release_tag }})
           body: |
             ## 🌟 相比前一版本（v2026.11.17-0850）的核心更新与变化
+
+            ### 0. 构建焦点切换：仅 FiberHome HG5382A
+            - **本版本起 CI 仅构建 HG5382A 固件**：设备支持（DTS、板级网络、sysupgrade、factory PON 校准数据）此前已合入本仓库，本次在 `configs/an7581.config` 中禁用其余 AN7581 设备（ZN504XG-D、HG5585F CT/CU、AN4475-G2、Nokia XG-040G 系列、UNG00A 等），显著缩短构建时间。Release 产物仅包含 HG5382A 的 `sysupgrade.itb`、`recovery.itb` 与 manifest；其余设备的支持代码仍完整保留在仓库中，后续可随时重新启用。
 
             ### 1. 内核 eBPF CO-RE 与 BTF 类型信息闭环（Linux 6.18）
             - **完整启用内核与模块 BTF 支持**：
