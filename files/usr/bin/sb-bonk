@@ -63,13 +63,49 @@ get_status() {
     fi
 }
 
+# 进程平滑退出与超时硬杀 (最多等待 timeout 秒，避免残存孤儿进程)
+graceful_stop_proc() {
+    local pattern="$1"
+    local kill_name="$2"
+    local timeout="${3:-5}"
+    local count=0
+    while [ "$count" -lt "$timeout" ]; do
+        if ! pgrep -f "$pattern" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+        count=$((count + 1))
+    done
+    killall -9 "$kill_name" 2>/dev/null || true
+}
+
+# 彻底清理 Sing-Box 残留的 nftables 规则、TUN 虚拟网卡与策略路由表 (避免切换 Honk 后国内流量被黑洞重定向)
+cleanup_singbox_leftovers() {
+    nft delete table inet sing-box 2>/dev/null || true
+    ip link del tun0 2>/dev/null || true
+    for fam in -4 -6; do
+        for pref in $(ip $fam rule show 2>/dev/null | awk -F: '/lookup 2022|0x2023|0x2024/ {gsub(/^[ \t]+|[ \t]+$/, "", $1); print $1}'); do
+            ip $fam rule del pref "$pref" 2>/dev/null || true
+        done
+        ip $fam rule del pref 9002 2>/dev/null || true
+        ip $fam route flush table 2022 2>/dev/null || true
+    done
+}
+
+# 清理 Honk 残留的 nftables 规则与网卡
+cleanup_honk_leftovers() {
+    nft delete table inet honk_nfqueue 2>/dev/null || true
+    ip link del dae0 2>/dev/null || true
+}
+
 # 1. 切换到 Honk (停止 Sing-Box 裸核，调整防火墙与 DNS，启动 Honk)
 switch_to_honk() {
     echo ""
     echo "${CYAN}${BOLD}[1/5] 检查并停止 Sing-Box (裸核)...${NC}"
     /etc/init.d/sing-box stop 2>/dev/null
-    killall -9 sing-box 2>/dev/null
-    echo "  ${GREEN}✓ Sing-Box 已停止${NC}"
+    graceful_stop_proc "sing-box run" "sing-box" 5
+    cleanup_singbox_leftovers
+    echo "  ${GREEN}✓ Sing-Box 已停止并清理残留规则${NC}"
 
     echo "${CYAN}${BOLD}[2/5] 调整防火墙 (关闭流分流以保障 eBPF 正常拦截)...${NC}"
     uci set firewall.@defaults[0].flow_offloading='0' 2>/dev/null
@@ -139,9 +175,10 @@ switch_to_singbox() {
     if [ -x "/etc/init.d/honk" ]; then
         /etc/init.d/honk stop 2>/dev/null
     fi
-    killall -9 honk 2>/dev/null
-    killall -9 honk-core 2>/dev/null
-    echo "  ${GREEN}✓ Honk 已停止${NC}"
+    graceful_stop_proc "honk-core|honk" "honk-core" 5
+    killall -9 honk 2>/dev/null || true
+    cleanup_honk_leftovers
+    echo "  ${GREEN}✓ Honk 已停止并清理残留规则${NC}"
 
     echo "${CYAN}${BOLD}[2/4] 恢复 Dnsmasq 默认解析配置...${NC}"
     uci set dhcp.@dnsmasq[0].noresolv='0' 2>/dev/null
@@ -177,10 +214,13 @@ stop_all() {
     if [ -x "/etc/init.d/honk" ]; then
         /etc/init.d/honk stop 2>/dev/null
     fi
-    killall -9 honk 2>/dev/null
-    killall -9 honk-core 2>/dev/null
+    graceful_stop_proc "honk-core|honk" "honk-core" 5
+    killall -9 honk 2>/dev/null || true
+    cleanup_honk_leftovers
+
     /etc/init.d/sing-box stop 2>/dev/null
-    killall -9 sing-box 2>/dev/null
+    graceful_stop_proc "sing-box run" "sing-box" 5
+    cleanup_singbox_leftovers
 
     echo "正在恢复系统默认 DNS 与防火墙..."
     uci set dhcp.@dnsmasq[0].noresolv='0' 2>/dev/null
