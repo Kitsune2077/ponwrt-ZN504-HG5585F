@@ -199,7 +199,7 @@ echo 2 > /proc/irq/21/smp_affinity_list 2>/dev/null
 if [ -d /sys/devices/system/cpu/cpufreq/ondemand ]; then
     echo 75 > /sys/devices/system/cpu/cpufreq/ondemand/up_threshold 2>/dev/null
     echo 1 > /sys/devices/system/cpu/cpufreq/ondemand/sampling_down_factor 2>/dev/null
-    echo 100 > /sys/devices/system/cpu/cpufreq/ondemand/powersave_bias 2>/dev/null
+    echo 0 > /sys/devices/system/cpu/cpufreq/ondemand/powersave_bias 2>/dev/null
     echo 1 > /sys/devices/system/cpu/cpufreq/ondemand/ignore_nice_load 2>/dev/null
     echo 0 > /sys/devices/system/cpu/cpufreq/ondemand/io_is_busy 2>/dev/null
 fi
