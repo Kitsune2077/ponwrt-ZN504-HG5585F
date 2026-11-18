@@ -113,6 +113,9 @@ apply_rps_tuning() {
     if [ -f /sys/devices/system/cpu/cpufreq/ondemand/powersave_bias ]; then
         echo 0 > /sys/devices/system/cpu/cpufreq/ondemand/powersave_bias 2>/dev/null
     fi
+    if [ -w /sys/kernel/debug/ppe/bind_rate ]; then
+        echo "5 5" > /sys/kernel/debug/ppe/bind_rate 2>/dev/null
+    fi
 }
 
 # 1. 切换到 Honk (停止 Sing-Box 裸核，调整防火墙与 DNS，启动 Honk)
@@ -124,13 +127,13 @@ switch_to_honk() {
     cleanup_singbox_leftovers
     echo "  ${GREEN}✓ Sing-Box 已停止并清理残留规则${NC}"
 
-    echo "${CYAN}${BOLD}[2/5] 调整防火墙 (关闭流分流以保障 eBPF 正常拦截)...${NC}"
-    uci set firewall.@defaults[0].flow_offloading='0' 2>/dev/null
-    uci set firewall.@defaults[0].flow_offloading_hw='0' 2>/dev/null
+    echo "${CYAN}${BOLD}[2/5] 调整防火墙 (启用硬件 PPE 芯片加速与流分流)...${NC}"
+    uci set firewall.@defaults[0].flow_offloading='1' 2>/dev/null
+    uci set firewall.@defaults[0].flow_offloading_hw='1' 2>/dev/null
     uci commit firewall 2>/dev/null
     /etc/init.d/firewall reload 2>/dev/null || /etc/init.d/firewall restart 2>/dev/null
     apply_rps_tuning "d"
-    echo "  ${GREEN}✓ 防火墙流分流已关闭，全队列多核 RPS/RFS 优化已生效 (突破 500M 吞吐)${NC}"
+    echo "  ${GREEN}✓ 硬件 PPE 芯片流分流加速已启用，全队列多核优化生效 (500M+ 满速且极低 CPU)${NC}"
 
     echo "${CYAN}${BOLD}[3/5] 联动 Dnsmasq (重定向至 Honk 127.0.0.1#5353 根除 DNS 泄露与抢答投毒)...${NC}"
     uci set dhcp.@dnsmasq[0].noresolv='1' 2>/dev/null
