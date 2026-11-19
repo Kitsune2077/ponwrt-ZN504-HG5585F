@@ -6,7 +6,7 @@ on:
       upload_release:
         description: 'Upload firmware to GitHub Releases'
         required: false
-        default: 'true'
+        default: true
         type: boolean
       cache_mode:
         description: '编译缓存模式 (使用缓存 / 重新编译 / 不使用缓存)'
@@ -88,7 +88,7 @@ jobs:
           bash ./scripts/customize.sh
 
       - name: Restore compiler ccache
-        if: ${{ github.event.inputs.cache_mode || '使用缓存' }} != '不使用缓存'
+        if: (github.event.inputs.cache_mode || '使用缓存') != '不使用缓存'
         uses: actions/cache/restore@v4
         with:
           path: .ccache
@@ -119,14 +119,14 @@ jobs:
           make -j"$(nproc)" || make -j1 V=s
 
       - name: Save compiler ccache
-        if: always() && (${{ github.event.inputs.cache_mode || '使用缓存' }} != '不使用缓存')
+        if: always() && ((github.event.inputs.cache_mode || '使用缓存') != '不使用缓存')
         uses: actions/cache/save@v4
         with:
           path: .ccache
           key: ponwrt-ccache-zn504-${{ hashFiles('configs/*.config') }}-${{ github.sha }}
 
       - name: Show compiler cache statistics
-        if: always() && (${{ github.event.inputs.cache_mode || '使用缓存' }} != '不使用缓存')
+        if: always() && ((github.event.inputs.cache_mode || '使用缓存') != '不使用缓存')
         run: |
           [ -x staging_dir/host/bin/ccache ] && CCACHE_DIR=$PWD/.ccache staging_dir/host/bin/ccache -s || true
 
