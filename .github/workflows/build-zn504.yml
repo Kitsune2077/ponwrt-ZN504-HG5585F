@@ -195,5 +195,5 @@ jobs:
             ### 4. CI/CD 构建流水线与 Firewall4 补丁闭环修复
             - **精准适配 OpenWrt 24.10 提交（`e6f600c4`）**：
               - 修正 `firewall4` 针对 OpenWrt 最新源码提交的代码上下文偏移量与行数计数，彻底清理 CI 流水线中外部冗余覆盖步骤，杜绝了 `firewall.rej` 的编译中断缺陷。
-              - GitHub Actions 每日/触发构建成功率提升至 100%，持续保障 **兆能 ZN504XG-D** 与 **烽火 HG5585F 电信版** 双旗舰固件的高质稳定交付。
+              - GitHub Actions 每日/触发构建成功率提升至 100%，持续保障 **烽火 HG5382A** 增强固件的高质稳定交付。
           files: output/*
