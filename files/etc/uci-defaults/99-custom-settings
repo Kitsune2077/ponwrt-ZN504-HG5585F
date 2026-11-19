@@ -102,10 +102,10 @@ del rtp2httpd.main.listen
 add_list rtp2httpd.main.listen='4022'
 set rtp2httpd.main.upstream_interface='br-iptv'
 set rtp2httpd.main.noudpxy='0'
-set rtp2httpd.main.workers='4'
+set rtp2httpd.main.workers='1'
 set rtp2httpd.main.maxclients='20'
 set rtp2httpd.main.buffer_pool_max_size='16384'
-set rtp2httpd.main.udp_rcvbuf_size='2097152'
+set rtp2httpd.main.udp_rcvbuf_size='524288'
 set rtp2httpd.main.external_m3u='file:///www/iptv.m3u'
 commit rtp2httpd
 EOF
@@ -147,8 +147,8 @@ commit firewall
 EOF
 fi
 
-# 4. 双核配置目录预置
-mkdir -p /etc/sing-box /etc/honk
+# 4. 代理与网络配置目录预置
+mkdir -p /etc/honk
 
 # 确保热插拔与系统调优脚本拥有执行权限
 chmod +x /etc/hotplug.d/net/50-fw4-bridge-reload 2>/dev/null || true
@@ -220,7 +220,18 @@ if [ -w /sys/kernel/debug/ppe/bind_rate ]; then
     echo "5 5" > /sys/kernel/debug/ppe/bind_rate 2>/dev/null
 fi
 
-# 8. 开机末尾补刷全队列多核 RPS/RFS 与 PPE 绑定门限，防止 packet_steering=0 清零物理口队列
+ethtool -K tailscale0 rx-udp-gro-forwarding on rx-gro-list off 2>/dev/null || true
+
+# 8. 保护光纤心跳进程 airoha-pond：免疫 OOM Killer (-1000)
+for p in $(pgrep airoha-pond 2>/dev/null); do
+    echo -1000 > "/proc/$p/oom_score_adj" 2>/dev/null
+done
+
+# 9. 限制 honk cgroup memory.high (85MB)
+echo 89128960 > /sys/fs/cgroup/services/honk/memory.high 2>/dev/null || true
+[ -d /sys/fs/cgroup/services/honk/honk ] && echo 89128960 > /sys/fs/cgroup/services/honk/honk/memory.high 2>/dev/null || true
+
+# 10. 开机末尾补刷全队列多核 RPS/RFS 与 PPE 绑定门限，防止 packet_steering=0 清零物理口队列
 if [ -x /usr/bin/sb-bonk ]; then
     /usr/bin/sb-bonk apply-rps >/dev/null 2>&1
 fi
@@ -244,10 +255,10 @@ echo 'hsts=0' > /root/.wgetrc
 sed -i '/log-facility/d' /etc/dnsmasq.conf 2>/dev/null
 echo "log-facility=/dev/null" >> /etc/dnsmasq.conf
 
-# 9. 烽火 (FiberHome) PON 认证与双核代理配置跨版本升级自动保护机制
+# 9. 烽火 (FiberHome) PON 认证与代理配置跨版本升级自动保护机制
 # 将关键路径加入 /etc/sysupgrade.conf，防止固件升级抹除认证数据与代理配置
 SYSUPGRADE_CONF="/etc/sysupgrade.conf"
-for path in "/etc/config/pon" "/etc/fiberhome_pon_backup.uci" "/etc/fiberhome_pon_info.txt" "/usr/sbin/backup-fiberhome-pon.sh" "/usr/sbin/restore-fiberhome-pon.sh" "/etc/sing-box" "/etc/honk" "/etc/config/honk" "/usr/bin/sb-honk" "/usr/bin/sb-bonk"; do
+for path in "/etc/config/pon" "/etc/fiberhome_pon_backup.uci" "/etc/fiberhome_pon_info.txt" "/usr/sbin/backup-fiberhome-pon.sh" "/usr/sbin/restore-fiberhome-pon.sh" "/etc/honk" "/etc/config/honk"; do
     if ! grep -q "^$path" "$SYSUPGRADE_CONF" 2>/dev/null; then
         echo "$path" >> "$SYSUPGRADE_CONF"
     fi
@@ -312,14 +323,14 @@ set firewall.wsd_ipv6_notrack.target='NOTRACK'
 commit firewall
 EOF
 
-# 扩大 TCP 读写套接字缓冲区至 16MB 并扩容网络队列，消除万兆大带宽长肥管道瓶颈与软中断突发丢包
+# 约束 TCP 读写套接字缓冲区至 4MB 并优化网络队列，消除万兆大带宽长肥管道瓶颈同时防止 423MB 内存溢出
 mkdir -p /etc/sysctl.d
 cat <<'EOF' > /etc/sysctl.d/30-network-buffers.conf
-net.core.rmem_max=16777216
-net.core.wmem_max=16777216
-net.ipv4.tcp_rmem=4096 87380 16777216
-net.ipv4.tcp_wmem=4096 65536 16777216
-net.core.netdev_max_backlog=16384
+net.core.rmem_max=4194304
+net.core.wmem_max=4194304
+net.ipv4.tcp_rmem=4096 87380 4194304
+net.ipv4.tcp_wmem=4096 65536 4194304
+net.core.netdev_max_backlog=10000
 net.core.netdev_budget=600
 net.core.dev_weight=128
 EOF
